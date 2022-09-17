@@ -1,0 +1,17 @@
+picture, result
+test_1.jpg, true
+test_2.jpg, true
+test_3.jpg, false
+test_4.jpg, true
+test_5.jpg, false
+test_6.jpg, false
+test_7.jpg, false
+test_8.jpg, true
+test_9.jpg, true
+test_10.jpg, true
+test_11.jpg, false
+test_12.jpg, true
+test_13.jpg, true
+test_14.jpg, false
+test_15.jpg, false
+

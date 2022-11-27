@@ -12,6 +12,36 @@ from scipy.ndimage import binary_fill_holes
 min_area = 10000
 min_area_figure = 1000
 
+max_intensity = 255
+red_channel = 0
+min_intensity_of_white_sheet = 180
+
+step = 10
+
+def mask_placer(rect, msk, area, max_x, max_y, dx, dy):
+    for x in range(0, max_x, step):
+        for y in range(0, max_y, step):
+            if np.sum(cv2.bitwise_xor(msk, rect[x: x + dx, y : y + dy])) == area:
+                rect[x: x + dx, y : y + dy] = msk
+                return True
+    return False
+def placer(rect, masks, areas):
+    rect = rect.astype(int)
+    for msk, area in zip(masks, areas):
+        msk = (~msk).astype(int)
+        
+        h, w = rect.shape
+        dx, dy = msk.shape
+        
+        max_x = h - dx
+        max_y = w - dy
+        
+        if mask_placer(rect, msk, area, max_x, max_y, dx, dy) is False:
+            return False
+    return True
+
+
+
 def get_images(path):
     images = []
     
@@ -27,7 +57,7 @@ def calc_peak(rect):
     hist = [val[0] for val in hist]
     indices = list(range(0, 256))
     s = [(x,y) for y,x in sorted(zip(hist,indices), reverse=True)]
-    return s[0][0] > 180
+    return s[0][0] > min_intensity_of_white_sheet
 
 def find_poly(image):
     img = image.copy()
@@ -41,11 +71,11 @@ def find_poly(image):
         contours = list(contours)
         contours.sort(key=cv2.contourArea, reverse=True)
         contour = contours[0]
-        #contour = max(contours, key = cv2.contourArea)
+        
 
         perimeter = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.004 * perimeter, True)
-        #cv2.drawContours(img, [approx], -1, (255, 255, 255), 30)
+        
         
         box = cv2.boundingRect(approx)
         x,y,w,h = box
@@ -65,12 +95,12 @@ def find_poly(image):
             return None, None, None
         rect = np.zeros_like(inv_gray)
         
-        cv2.drawContours(rect, [approx], -1, (255, 255, 255), -1)
+        cv2.drawContours(rect, [approx], -1, (1, 1, 1), -1)
         rect = rect[y:y+h, x:x+w]
     return img, box, rect
 
 
-def without_figures(img, box):
+def filter_items(img, box):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU )
 
@@ -84,6 +114,8 @@ def without_figures(img, box):
 
 def get_masks(wf):
     masks = []
+    areas = []
+    
     labels = label(wf)
     
     for i, region in enumerate(regionprops(labels)):
@@ -91,5 +123,6 @@ def get_masks(wf):
             mask = (labels == i + 1)
             x,y,xx,yy = region.bbox
             masks.append(mask[x:xx, y:yy])
-    return masks
+            areas.append(region.area)
+    return masks, areas
             

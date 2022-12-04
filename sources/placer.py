@@ -12,45 +12,46 @@ from scipy.ndimage import rotate
 
 from skimage.morphology import binary_closing
 
-min_area = 10000
-min_area_figure = 1000
+# The required parameters
+min_area = 10000 # min area of items
+min_area_figure = 1000 # min area of poly
 
-max_intensity = 255
-red_channel = 0
-min_intensity_of_white_sheet = 180
+max_intensity = 255 # max intensity
+red_channel = 0 #index of red channel
+min_intensity_of_white_sheet = 180 # min intensity of white sheet in red channel
 
-step = 10
+step = 10 # step for x,y and angle in mask_placer function
 
+# The mask_placer function - it receives a polygon, a mask and a mask area as input. She applies the mask to the rect until it fits
 def mask_placer(rect, msk, area):
     h, w = rect.shape
     for angle in range(0, 180, step):
         rotated_mask = msk.astype(int)
         rotated_mask = rotate(rotated_mask, angle, reshape=True)
-        rotated_mask = rotated_mask ^ 1
+        rotated_mask = rotated_mask ^ 1 #lets reverse it
         
         dx, dy = rotated_mask.shape
-        max_x = h - dx
-        max_y = w - dy
+        max_x = h - dx # max value for x
+        max_y = w - dy # max value for y
         
         for x in range(0, max_x, step):
             for y in range(0, max_y, step):
-                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:
-                    rect[x: x + dx, y : y + dy] = rotated_mask
-                    #plt.imshow(rect)
-                    #plt.show()
+                # our polygon is filled with white and the subject is black - so xor return us area of mask if mask fits
+                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:   
+                    rect[x: x + dx, y : y + dy] = rotated_mask #now in rect there are our mask
                     return True
     return False
+
+#The mask_placer function - it receives a polygon, a masks and a masks areas as input. She applies each mask to the rect
 def placer(rect, masks, areas):
     rect = rect.astype(int)
     for msk, area in zip(masks, areas):
             if mask_placer(rect, msk, area) is False:
                 return False
-    #plt.imshow(rect)
-    #plt.show()
     return True
 
 
-
+# Just get images
 def get_images(path):
     images = []
     
@@ -61,6 +62,7 @@ def get_images(path):
 
     return images
 
+# Calc peak function - it finds the histogram extremum in the red channel, and returns true if that extremum corresponds to intensity of white paper.
 def calc_peak(rect):
     hist = cv2.calcHist([rect], [0], None, [256], [0, 256])
     hist = [val[0] for val in hist]
@@ -68,28 +70,32 @@ def calc_peak(rect):
     s = [(x,y) for y,x in sorted(zip(hist,indices), reverse=True)]
     return s[0][0] > min_intensity_of_white_sheet
 
+# finds polygon in image and returns bounding box, image with only polygon
 def find_poly(image):
     img = image.copy()
 
+    # First find contours before that we apply binarization
     inv_gray = ~cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, th = cv2.threshold(inv_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
     contours, _ = cv2.findContours(th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2:]
     
     if len(contours) != 0:
+        #Get max area contour
         contours = list(contours)
         contours.sort(key=cv2.contourArea, reverse=True)
         contour = contours[0]
         
 
+        # Approximate by poly this
         perimeter = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.004 * perimeter, True)
         
-        
+        # Find bound box
         box = cv2.boundingRect(approx)
         x,y,w,h = box
-        isWhiteInside = calc_peak(img[y:y+h, x:x+w])
+        isWhiteInside = calc_peak(img[y:y+h, x:x+w]) #check is this paper or polygon
         
+        #if not, take another contour
         k = 0
         while isWhiteInside == False:
             k = k + 1
@@ -99,25 +105,28 @@ def find_poly(image):
             box = cv2.boundingRect(approx)
             x,y,w,h = box
             isWhiteInside = calc_peak(img[y:y+h, x:x+w])
-            
+        # Don't have a polygon? Return nothing    
         if(cv2.contourArea(contour) < min_area_figure):
             return None, None, None
-        rect = np.zeros_like(inv_gray)
         
+        # Now draw only polgon
+        rect = np.zeros_like(inv_gray)
         cv2.drawContours(rect, [approx], -1, (1, 1, 1), -1)
         rect = rect[y:y+h, x:x+w]
     return img, box, rect
 
 
 def filter_items(img, box):
+    # Binarization
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU )
 
+    # Morphology opening/closing for better results 
     inv_morph_th = ~binary_opening(th, footprint=np.ones((20, 20)))
-
     inv_morph_th = binary_closing(inv_morph_th, footprint=np.ones((30, 30)))
     x,y,w,h = box
 
+    # Fill polygon black, no longer need
     inv_morph_th[y:y+h, x:x+w] = 0
     return inv_morph_th
 
@@ -125,11 +134,12 @@ def get_masks(wf):
     masks = []
     areas = []
     
+    # labels - matrix filled with indices of connectivity components
     labels = label(wf)
     
     for i, region in enumerate(regionprops(labels)):
         if region.area >= min_area:
-            mask = (labels == i + 1)
+            mask = (labels == i + 1) #get mask with our index
             x,y,xx,yy = region.bbox
             masks.append(mask[x:xx, y:yy])
             areas.append(region.area)

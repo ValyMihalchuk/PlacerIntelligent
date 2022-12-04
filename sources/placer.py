@@ -8,6 +8,9 @@ from skimage.morphology import binary_opening
 from skimage.measure import regionprops
 from skimage.measure import label
 from scipy.ndimage import binary_fill_holes
+from scipy.ndimage import rotate
+
+from skimage.morphology import binary_closing
 
 min_area = 10000
 min_area_figure = 1000
@@ -18,26 +21,32 @@ min_intensity_of_white_sheet = 180
 
 step = 10
 
-def mask_placer(rect, msk, area, max_x, max_y, dx, dy):
-    for x in range(0, max_x, step):
-        for y in range(0, max_y, step):
-            if np.sum(cv2.bitwise_xor(msk, rect[x: x + dx, y : y + dy])) == area:
-                rect[x: x + dx, y : y + dy] = msk
-                return True
+def mask_placer(rect, msk, area):
+    h, w = rect.shape
+    for angle in range(0, 180, step):
+        rotated_mask = msk.astype(int)
+        rotated_mask = rotate(rotated_mask, angle, reshape=True)
+        rotated_mask = rotated_mask ^ 1
+        
+        dx, dy = rotated_mask.shape
+        max_x = h - dx
+        max_y = w - dy
+        
+        for x in range(0, max_x, step):
+            for y in range(0, max_y, step):
+                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:
+                    rect[x: x + dx, y : y + dy] = rotated_mask
+                    #plt.imshow(rect)
+                    #plt.show()
+                    return True
     return False
 def placer(rect, masks, areas):
     rect = rect.astype(int)
     for msk, area in zip(masks, areas):
-        msk = (~msk).astype(int)
-        
-        h, w = rect.shape
-        dx, dy = msk.shape
-        
-        max_x = h - dx
-        max_y = w - dy
-        
-        if mask_placer(rect, msk, area, max_x, max_y, dx, dy) is False:
-            return False
+            if mask_placer(rect, msk, area) is False:
+                return False
+    #plt.imshow(rect)
+    #plt.show()
     return True
 
 
@@ -106,7 +115,7 @@ def filter_items(img, box):
 
     inv_morph_th = ~binary_opening(th, footprint=np.ones((20, 20)))
 
-    
+    inv_morph_th = binary_closing(inv_morph_th, footprint=np.ones((30, 30)))
     x,y,w,h = box
 
     inv_morph_th[y:y+h, x:x+w] = 0

@@ -22,13 +22,12 @@ min_intensity_of_white_sheet = 180 # min intensity of white sheet in red channel
 
 step = 10 # step for x,y and angle in mask_placer function
 
-# The mask_placer function - it receives a polygon, a mask and a mask area as input. She applies the mask to the rect until it fits
-def mask_placer(rect, msk, area):
+# The mask_placer function - it receives a polygon ans a mask  as input. She applies the mask to the rect until it fits
+def mask_placer(rect, msk):
     h, w = rect.shape
     for angle in range(0, 180, step):
         rotated_mask = msk.astype(int)
         rotated_mask = rotate(rotated_mask, angle, reshape=True)
-        rotated_mask = rotated_mask ^ 1 #lets reverse it
         
         dx, dy = rotated_mask.shape
         max_x = h - dx # max value for x
@@ -36,17 +35,17 @@ def mask_placer(rect, msk, area):
         
         for x in range(0, max_x, step):
             for y in range(0, max_y, step):
-                # our polygon is filled with white and the subject is black - so xor return us area of mask if mask fits
-                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:   
+                # our polygon is filled with black and the subject is white - so and return us 0 if mask fits
+                if np.sum(cv2.bitwise_and(rotated_mask, rect[x: x + dx, y : y + dy])) == 0:   
                     rect[x: x + dx, y : y + dy] = rotated_mask #now in rect there are our mask
                     return True
     return False
 
-#The mask_placer function - it receives a polygon, a masks and a masks areas as input. She applies each mask to the rect
-def placer(rect, masks, areas):
+#The mask_placer function - it receives a polygon and a masks as input. She applies each mask to the rect
+def placer(rect, masks):
     rect = rect.astype(int)
-    for msk, area in zip(masks, areas):
-            if mask_placer(rect, msk, area) is False:
+    for msk in masks:
+            if mask_placer(rect, msk) is False:
                 return False
     return True
 
@@ -107,13 +106,13 @@ def find_poly(image):
             isWhiteInside = calc_peak(img[y:y+h, x:x+w])
         # Don't have a polygon? Return nothing    
         if(cv2.contourArea(contour) < min_area_figure):
-            return None, None, None
+            return None, None
         
         # Now draw only polgon
         rect = np.zeros_like(inv_gray)
         cv2.drawContours(rect, [approx], -1, (1, 1, 1), -1)
         rect = rect[y:y+h, x:x+w]
-    return img, box, rect
+    return box, rect
 
 
 def filter_items(img, box):

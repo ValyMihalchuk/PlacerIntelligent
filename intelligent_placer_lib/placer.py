@@ -22,12 +22,13 @@ min_intensity_of_white_sheet = 180 # min intensity of white sheet in red channel
 
 step = 10 # step for x,y and angle in mask_placer function
 
-# The mask_placer function - it receives a polygon ans a mask  as input. She applies the mask to the rect until it fits
-def mask_placer(rect, msk):
+# The mask_placer function - it receives a polygon ans a mask with areas as input. She applies the mask to the rect until it fits
+def mask_placer(rect, msk, area):
     h, w = rect.shape
     for angle in range(0, 180, step):
         rotated_mask = msk.astype(int)
         rotated_mask = rotate(rotated_mask, angle, reshape=True)
+        
         
         dx, dy = rotated_mask.shape
         max_x = h - dx # max value for x
@@ -35,19 +36,22 @@ def mask_placer(rect, msk):
         
         for x in range(0, max_x, step):
             for y in range(0, max_y, step):
-                # our polygon is filled with black and the subject is white - so and return us 0 if mask fits
-                if np.sum(cv2.bitwise_and(rotated_mask, rect[x: x + dx, y : y + dy])) == 0:   
+
+                # our polygon is filled with white and the subject is black - so if we sum result, we get masks area if mask fits
+                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:
                     rect[x: x + dx, y : y + dy] = rotated_mask #now in rect there are our mask
+
                     return True
     return False
 
-#The mask_placer function - it receives a polygon and a masks as input. She applies each mask to the rect
-def placer(rect, masks):
+#The mask_placer function - it receives a polygon and a masks with areas as input. She applies each mask to the rect
+def placer(rect, masks, areas):
     rect = rect.astype(int)
-    for msk in masks:
-            if mask_placer(rect, msk) is False:
-                return False
-    return True
+    
+    for msk, area in zip(masks, areas):
+            if mask_placer(rect, ~msk, area) is False:
+                return False, rect
+    return True, rect
 
 
 # Just get images

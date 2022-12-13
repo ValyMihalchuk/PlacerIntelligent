@@ -9,5 +9,5 @@ def check_image(path):
    
     wf = filter_items(image, box)
     masks, areas = get_masks(wf)
-    answer = placer(~rect, masks)
+    answer, _ = placer(~rect, masks)
     return answer

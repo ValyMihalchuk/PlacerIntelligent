@@ -23,16 +23,15 @@ min_intensity_of_white_sheet = 180 # min intensity of white sheet in red channel
 step = 10 # step for x,y and angle in mask_placer function
 
 
-
+# Own version Xor that does not take into account pixels outside the object in the mask
 def my_xor(mask, rect):
     result = mask.copy()
     for i in range(len(mask)):
         for j in range(len(mask[i])):
-            #print(mask[i][j])
-            #print(rect[i][j])
             if mask[i][j]==0:
                 result[i][j]=int(bool(mask[i][j]) != bool(rect[i][j]))
-            #print(result[i][j])   
+            else:
+                result[i][j]=0 
     return result
 # The mask_placer function - it receives a polygon ans a mask with areas as input. She applies the mask to the rect until it fits
 def mask_placer(rect, msk, area):

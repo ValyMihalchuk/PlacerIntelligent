@@ -22,15 +22,32 @@ min_intensity_of_white_sheet = 180 # min intensity of white sheet in red channel
 
 step = 10 # step for x,y and angle in mask_placer function
 
+
+
+def my_xor(mask, rect):
+    result = mask.copy()
+    for i in range(len(mask)):
+        for j in range(len(mask[i])):
+            #print(mask[i][j])
+            #print(rect[i][j])
+            if mask[i][j]==0:
+                result[i][j]=int(bool(mask[i][j]) != bool(rect[i][j]))
+            #print(result[i][j])   
+    return result
 # The mask_placer function - it receives a polygon ans a mask with areas as input. She applies the mask to the rect until it fits
 def mask_placer(rect, msk, area):
     h, w = rect.shape
+    msk = msk.astype(int)
+    msk = msk ^ 1
+    
     for angle in range(0, 180, step):
         rotated_mask = msk.astype(int)
         rotated_mask = rotate(rotated_mask, angle, reshape=True)
         
         
         dx, dy = rotated_mask.shape
+        #plt.imshow(rotated_mask)
+        #plt.show()
         max_x = h - dx # max value for x
         max_y = w - dy # max value for y
         
@@ -38,8 +55,8 @@ def mask_placer(rect, msk, area):
             for y in range(0, max_y, step):
 
                 # our polygon is filled with white and the subject is black - so if we sum result, we get masks area if mask fits
-                if np.sum(cv2.bitwise_xor(rotated_mask, rect[x: x + dx, y : y + dy])) == area:
-                    rect[x: x + dx, y : y + dy] = rotated_mask #now in rect there are our mask
+                if np.sum(cv2.bitwise_xor(rotated_mask ^ 1, rect[x: x + dx, y : y + dy])) == area:
+                    rect[x: x + dx, y : y + dy] = rotated_mask ^ 1 #now in rect there are our mask
 
                     return True
     return False
